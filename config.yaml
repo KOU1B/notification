@@ -1,0 +1,9 @@
+telegram:
+  token: "YOUR_BOT_TOKEN"
+  main_admin_id: 123456789
+api:
+  token: "YOUR_API_TOKEN"
+  host: "0.0.0.0"
+  port: 8000
+monitoring:
+  interval: 30
