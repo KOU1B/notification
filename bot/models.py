@@ -29,7 +29,7 @@ class Service(SQLModel, table=True):
 class ServiceCheck(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     service_id: int = Field(foreign_key="service.id")
-    status: bool  # True if Up, False if Down
+    status: bool  # True если Доступен, False если Упал
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     service: Service = Relationship(back_populates="checks")

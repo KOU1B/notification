@@ -2,9 +2,10 @@ import asyncio
 import httpx
 import logging
 import yaml
+import os
 from icmplib import async_ping
 
-# Configure logging
+# Настройка логирования
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
@@ -38,16 +39,19 @@ async def check_ip(address: str) -> bool:
         return False
 
 async def main():
+    # Создаем директорию для логов, если её нет
+    os.makedirs("logs", exist_ok=True)
+
     headers = {"X-Token": API_TOKEN}
-    logging.info("Monitor started")
+    logging.info("Монитор запущен")
 
     while True:
         try:
             async with httpx.AsyncClient() as client:
-                # Fetch tasks
+                # Получаем список задач (сервисов для проверки)
                 response = await client.get(f"{API_URL}/tasks", headers=headers)
                 if response.status_code != 200:
-                    logging.error(f"Failed to fetch tasks: {response.status_code}")
+                    logging.error(f"Не удалось получить задачи: {response.status_code}")
                     await asyncio.sleep(INTERVAL)
                     continue
 
@@ -64,10 +68,10 @@ async def main():
                     elif service_type == 'ip':
                         status = await check_ip(address)
 
-                    # Report result
+                    # Отправляем результат проверки в API
                     report = {"service_id": service_id, "status": status}
                     await client.post(f"{API_URL}/report", json=report, headers=headers)
-                    logging.info(f"Reported {address} status: {status}")
+                    logging.info(f"Отчет по {address}, статус: {status}")
 
         except Exception as e:
             logging.error(f"Error in monitor loop: {e}")

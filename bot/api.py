@@ -24,13 +24,10 @@ async def get_tasks(token: str = Depends(verify_token)):
 
 @app.post("/report")
 async def report_result(result: CheckResult, token: str = Depends(verify_token)):
-    # We will handle notification logic here or in a separate task
-    # For now, just save to DB
+    # Логика уведомлений обрабатывается в фоновом цикле bot/main.py
+    # Здесь мы только сохраняем результат в БД
     last_check = get_last_check(result.service_id)
     add_service_check(result.service_id, result.status)
 
-    # Return if state changed to trigger notifications in the bot part
+    # Возвращаем информацию о том, изменилось ли состояние (для логов монитора)
     return {"status": "ok", "changed": (last_check.status != result.status) if last_check else True}
-
-# Bot instance will be shared or we will use a global event bus/queue if needed.
-# Since they are in the same process (likely), we can just import the bot.

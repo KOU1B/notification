@@ -15,7 +15,7 @@ from .db_utils import (
 )
 from .models import create_db_and_tables
 
-# Configure logging
+# Настройка логирования
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -25,7 +25,7 @@ logging.basicConfig(
 bot = Bot(token=config['telegram']['token'])
 dp = Dispatcher()
 
-# States
+# Состояния FSM
 class AddService(StatesGroup):
     choosing_group = State()
     choosing_type = State()
@@ -36,17 +36,13 @@ class AddService(StatesGroup):
 class AddAdmin(StatesGroup):
     entering_id = State()
 
-# Middleware for admin check
-def admin_only(handler):
-    async def wrapper(message: types.Message, *args, **kwargs):
-        if is_admin(message.from_user.id) or message.from_user.id == config['telegram']['main_admin_id']:
-            return await handler(message, *args, **kwargs)
-        await message.answer("У вас нет прав администратора.")
-    return wrapper
+# Проверка на права администратора (для сообщений и колбэков)
+async def check_admin(user_id: int) -> bool:
+    return is_admin(user_id) or user_id == config['telegram']['main_admin_id']
 
 @dp.message(Command("start"))
 async def cmd_start(message: Message):
-    # Auto-add main admin
+    # Автоматическое добавление главного админа из конфига
     if message.from_user.id == config['telegram']['main_admin_id']:
         add_admin(message.from_user.id, message.from_user.username)
 
@@ -70,9 +66,11 @@ async def cmd_register_group(message: Message):
     else:
         await message.answer("Эту команду нужно вызывать в группе.")
 
-# Callback handlers
+# Обработчики Callback-запросов
 @dp.callback_query(F.data == "manage_services")
 async def manage_services(callback: CallbackQuery):
+    if not await check_admin(callback.from_user.id):
+        return await callback.answer("У вас нет прав администратора.", show_alert=True)
     kb = [
         [InlineKeyboardButton(text="Добавить сервис", callback_data="add_service_start")],
         [InlineKeyboardButton(text="Список сервисов (Удаление)", callback_data="list_services")],
@@ -82,6 +80,8 @@ async def manage_services(callback: CallbackQuery):
 
 @dp.callback_query(F.data == "add_service_start")
 async def add_service_step1(callback: CallbackQuery, state: FSMContext):
+    if not await check_admin(callback.from_user.id):
+        return await callback.answer("У вас нет прав администратора.", show_alert=True)
     groups = get_groups()
     if not groups:
         await callback.answer("Сначала зарегистрируйте хотя бы одну группу командой /register_group в чате.", show_alert=True)
@@ -140,11 +140,13 @@ async def add_service_final(message: Message, state: FSMContext):
     add_service(data['name'], data['type'], data['address'], data['group_id'], limit)
     await message.answer(f"Сервис '{data['name']}' успешно добавлен!")
     await state.clear()
-    # Go back to menu
+    # Возвращаемся в главное меню
     await cmd_start(message)
 
 @dp.callback_query(F.data == "list_services")
 async def list_services(callback: CallbackQuery):
+    if not await check_admin(callback.from_user.id):
+        return await callback.answer("У вас нет прав администратора.", show_alert=True)
     services = get_services()
     if not services:
         await callback.answer("Список сервисов пуст.")
@@ -159,6 +161,8 @@ async def list_services(callback: CallbackQuery):
 
 @dp.callback_query(F.data.startswith("delete_service_"))
 async def handle_delete_service(callback: CallbackQuery):
+    if not await check_admin(callback.from_user.id):
+        return await callback.answer("У вас нет прав администратора.", show_alert=True)
     service_id = int(callback.data.split("_")[-1])
     if delete_service(service_id):
         await callback.answer("Сервис удален.")
@@ -168,6 +172,8 @@ async def handle_delete_service(callback: CallbackQuery):
 
 @dp.callback_query(F.data == "status_all")
 async def status_all(callback: CallbackQuery):
+    if not await check_admin(callback.from_user.id):
+        return await callback.answer("У вас нет прав администратора.", show_alert=True)
     services = get_services()
     if not services:
         await callback.message.answer("Нет сервисов для мониторинга.")
@@ -185,6 +191,8 @@ async def status_all(callback: CallbackQuery):
 
 @dp.callback_query(F.data == "uptime_stats")
 async def uptime_stats(callback: CallbackQuery):
+    if not await check_admin(callback.from_user.id):
+        return await callback.answer("У вас нет прав администратора.", show_alert=True)
     services = get_services()
     if not services:
         await callback.message.answer("Нет сервисов для статистики.")
@@ -206,6 +214,8 @@ async def uptime_stats(callback: CallbackQuery):
 
 @dp.callback_query(F.data == "add_admin")
 async def add_admin_start(callback: CallbackQuery, state: FSMContext):
+    if not await check_admin(callback.from_user.id):
+        return await callback.answer("У вас нет прав администратора.", show_alert=True)
     if callback.from_user.id != config['telegram']['main_admin_id']:
         await callback.answer("Только главный администратор может добавлять других.", show_alert=True)
         return
@@ -230,6 +240,8 @@ async def back_to_main(callback: CallbackQuery):
 
 @dp.callback_query(F.data == "manage_groups")
 async def manage_groups(callback: CallbackQuery):
+    if not await check_admin(callback.from_user.id):
+        return await callback.answer("У вас нет прав администратора.", show_alert=True)
     groups = get_groups()
     text = "📋 **Зарегистрированные группы:**\n\n"
     for g in groups:

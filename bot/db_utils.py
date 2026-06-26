@@ -79,22 +79,22 @@ def get_last_check(service_id: int) -> Optional[ServiceCheck]:
 
 def get_uptime_info(service_id: int):
     with Session(engine) as session:
-        # Find last failure
+        # Находим последнее падение
         statement = select(ServiceCheck).where(ServiceCheck.service_id == service_id, ServiceCheck.status == False).order_by(ServiceCheck.timestamp.desc())
         last_failure = session.exec(statement).first()
 
         if last_failure:
             return last_failure.timestamp
         else:
-            # If no failures, return the timestamp of the first check ever or None
+            # Если падений не было, возвращаем время самой первой проверки или None
             statement = select(ServiceCheck).where(ServiceCheck.service_id == service_id).order_by(ServiceCheck.timestamp.asc())
             first_check = session.exec(statement).first()
             return first_check.timestamp if first_check else None
 
 def get_consecutive_failures(service_id: int) -> int:
     with Session(engine) as session:
-        # Fetch only the last N checks where N is reasonably small or based on notification limit
-        # But we need to know how many failures happened since the last success
+        # Запрашиваем только последние N проверок
+        # Нам нужно знать, сколько раз подряд сервис был недоступен с момента последней успешной проверки
         statement = select(ServiceCheck).where(ServiceCheck.service_id == service_id).order_by(ServiceCheck.timestamp.desc()).limit(20)
         checks = session.exec(statement).all()
         count = 0
